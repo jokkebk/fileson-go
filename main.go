@@ -7,12 +7,6 @@ import (
 )
 
 func main() {
-	// Check that a file name was provided
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <filename> <folder>")
-		return
-	}
-
 	// Read the file
 	fson, err := readFileson(os.Args[1])
 
