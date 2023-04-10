@@ -1,14 +1,18 @@
-package main
+/*
+Copyright © Joonas Pihlajamaa <joonas.pihlajamaa@iki.fi>
+*/
+package fileson
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 // Function that returns a map with string keys and interface{} values
-func readFileson(filename string) (map[string]interface{}, error) {
+func ReadFileson(filename string) (map[string]interface{}, error) {
 	// Open file for reading, name from command line
 	file, err := os.Open(filename)
 	if err != nil {
@@ -63,4 +67,45 @@ func readFileson(filename string) (map[string]interface{}, error) {
 	}
 
 	return fileson, nil
+}
+
+func ScanDirectory(dirname string, fson map[string]interface{}) {
+	/*
+			// Read the file
+			fson, err := readFileson(os.Args[1])
+		fileson
+
+			if err != nil {
+				fmt.Println("Error reading file:", err)
+				return
+			}
+
+			// Print the map length
+			fmt.Println(len(fson), "objects read from", os.Args[1])
+	*/
+
+	// Throw error if dirname is not a directory
+	stat, err := os.Stat(dirname)
+	if err != nil || !stat.IsDir() {
+		fmt.Println("Error reading directory:", err)
+		return
+	}
+
+	// Walk the directory and print all files
+	filepath.Walk(dirname, func(path string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			// Extract relative path from absolute path
+			relPath, err := filepath.Rel(dirname, path)
+			if err != nil {
+				fmt.Println("Error getting relative path:", err)
+				return err
+			}
+
+			// Check if the file is in the map
+			if _, ok := fson[relPath]; !ok {
+				fmt.Println(relPath, "not found")
+			}
+		}
+		return nil
+	})
 }
