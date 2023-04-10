@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/jokkebk/fileson-go/util"
 )
 
 // Function that returns a map with string keys and interface{} values
@@ -70,20 +72,6 @@ func ReadFileson(filename string) (map[string]interface{}, error) {
 }
 
 func ScanDirectory(dirname string, fson map[string]interface{}) {
-	/*
-			// Read the file
-			fson, err := readFileson(os.Args[1])
-		fileson
-
-			if err != nil {
-				fmt.Println("Error reading file:", err)
-				return
-			}
-
-			// Print the map length
-			fmt.Println(len(fson), "objects read from", os.Args[1])
-	*/
-
 	// Throw error if dirname is not a directory
 	stat, err := os.Stat(dirname)
 	if err != nil || !stat.IsDir() {
@@ -96,13 +84,47 @@ func ScanDirectory(dirname string, fson map[string]interface{}) {
 		if !info.IsDir() {
 			// Extract relative path from absolute path
 			relPath, err := filepath.Rel(dirname, path)
+
 			if err != nil {
 				fmt.Println("Error getting relative path:", err)
 				return err
 			}
 
+			// Get the file's modification time in UTC and size
+			modTime := info.ModTime().UTC().Format("2006-01-02 15:04:05")
+			size := info.Size()
+
 			// Check if the file is in the map
-			if _, ok := fson[relPath]; !ok {
+			if entry, ok := fson[relPath]; ok {
+				// Get the file's modification time and size from the map
+				ftime := entry.(map[string]interface{})["modified_gmt"].(string)
+				fsize := entry.(map[string]interface{})["size"].(float64)
+
+				// Compare the file's modification time and size to the map's
+				if modTime != ftime || size != int64(fsize) {
+					fmt.Println("File has changed", relPath)
+					fmt.Println(modTime, "vs.", ftime)
+					fmt.Println(size, "vs.", fsize)
+
+					// Recalculate the sha1 hash
+					hash, err := util.CalculateSHA1(path)
+
+					if err != nil {
+						fmt.Printf("Could not calculate hash for %s: %s", relPath, err)
+						os.Exit(1)
+					}
+
+					// Update the map
+					fson[relPath] = map[string]interface{}{
+						"modified_gmt": modTime,
+						"size":         size,
+						"sha1":         hash,
+					}
+
+					// Print the new hash
+					fmt.Println(relPath, "new hash", hash, "vs.", entry.(map[string]interface{})["sha1"].(string))
+				}
+			} else { // If the file is not in the map, print it
 				fmt.Println(relPath, "not found")
 			}
 		}
