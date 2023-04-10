@@ -27,7 +27,7 @@ func run(cmd *cobra.Command, args []string) {
 	directory := args[1]
 
 	// Read the file
-	fson, err := fileson.ReadFileson(jsonFile)
+	fson, err := fileson.ReadFile(jsonFile)
 
 	if err != nil {
 		fmt.Println("Error reading file:", err)
@@ -35,9 +35,9 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// Print the map length
-	fmt.Println(len(fson), "objects read from", jsonFile)
+	fmt.Println(fson.Len(), "objects read from", jsonFile)
 
-	fileson.ScanDirectory(directory, fson)
+	fson.ScanDirectory(directory)
 }
 
 func init() {

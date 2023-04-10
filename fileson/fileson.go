@@ -1,5 +1,8 @@
 /*
 Copyright © Joonas Pihlajamaa <joonas.pihlajamaa@iki.fi>
+
+Fileson is a map-like structure that records changes in JSON file.
+All changes are logged and appended as they happen.
 */
 package fileson
 
@@ -13,19 +16,66 @@ import (
 	"github.com/jokkebk/fileson-go/util"
 )
 
-// Function that returns a map with string keys and interface{} values
-func ReadFileson(filename string) (map[string]interface{}, error) {
+type Fileson struct {
+	data map[string]interface{}
+}
+
+func NewFileson() *Fileson {
+	return &Fileson{
+		data: make(map[string]interface{}),
+	}
+}
+
+func (m *Fileson) Len() int {
+	return len(m.data)
+}
+
+func (m *Fileson) Delete(key string) {
+	fmt.Printf("Deleting %s\n", key)
+	delete(m.data, key)
+}
+
+func (m *Fileson) Range(f func(key string, value interface{}) bool) {
+	for k, v := range m.data {
+		if !f(k, v) {
+			break
+		}
+	}
+}
+
+func (m *Fileson) Load(key string) (value interface{}, ok bool) {
+	value, ok = m.data[key]
+	return
+}
+
+func (m *Fileson) Store(key string, value interface{}) {
+	fmt.Printf("Storing %s = %s\n", key, value)
+
+	// Create array with key and value as two elements
+	objects := []interface{}{key, value}
+	jsonStr, err := json.Marshal(objects)
+
+	if err != nil {
+		fmt.Println("Error marshalling JSON:", err)
+		return
+	}
+
+	fmt.Printf("JSON: %s\n", jsonStr)
+
+	m.data[key] = value
+}
+
+func ReadFile(filename string) (*Fileson, error) {
+	fileson := &Fileson{
+		data: make(map[string]interface{}),
+	}
+
 	// Open file for reading, name from command line
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-
-	// Create map with string keys and interface{} values
-	// This is the type of the JSON object we will read
-	// from the file
-	fileson := make(map[string]interface{})
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -53,13 +103,13 @@ func ReadFileson(filename string) (map[string]interface{}, error) {
 		if len(objects) == 2 {
 			// Check that the first item is a string
 			if key, ok := objects[0].(string); ok {
-				// Add key and value to map
-				fileson[key] = objects[1]
+				// Add key and value to map bypassing Store
+				fileson.data[key] = objects[1]
 			}
 		} else if len(objects) == 1 {
-			// If there was only one item, delete the key
+			// If there was only one item, delete the key, bypassing Delete
 			if key, ok := objects[0].(string); ok {
-				delete(fileson, key)
+				delete(fileson.data, key)
 			}
 		}
 	}
@@ -71,7 +121,7 @@ func ReadFileson(filename string) (map[string]interface{}, error) {
 	return fileson, nil
 }
 
-func ScanDirectory(dirname string, fson map[string]interface{}) {
+func (fson *Fileson) ScanDirectory(dirname string) {
 	// Throw error if dirname is not a directory
 	stat, err := os.Stat(dirname)
 	if err != nil || !stat.IsDir() {
@@ -95,7 +145,7 @@ func ScanDirectory(dirname string, fson map[string]interface{}) {
 			size := info.Size()
 
 			// Check if the file is in the map
-			if entry, ok := fson[relPath]; ok {
+			if entry, ok := fson.Load(relPath); ok {
 				// Get the file's modification time and size from the map
 				ftime := entry.(map[string]interface{})["modified_gmt"].(string)
 				fsize := entry.(map[string]interface{})["size"].(float64)
@@ -114,15 +164,15 @@ func ScanDirectory(dirname string, fson map[string]interface{}) {
 						os.Exit(1)
 					}
 
+					// Print the new hash
+					fmt.Println(relPath, "new hash", hash, "vs.", entry.(map[string]interface{})["sha1"].(string))
+
 					// Update the map
-					fson[relPath] = map[string]interface{}{
+					fson.Store(relPath, map[string]interface{}{
 						"modified_gmt": modTime,
 						"size":         size,
 						"sha1":         hash,
-					}
-
-					// Print the new hash
-					fmt.Println(relPath, "new hash", hash, "vs.", entry.(map[string]interface{})["sha1"].(string))
+					})
 				}
 			} else { // If the file is not in the map, print it
 				fmt.Println(relPath, "not found")
